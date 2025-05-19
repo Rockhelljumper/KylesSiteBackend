@@ -1,0 +1,6 @@
+@KylesBackendAPI_HostAddress = http://localhost:5027
+
+GET {{KylesBackendAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
