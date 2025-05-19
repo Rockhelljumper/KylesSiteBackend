@@ -29,6 +29,8 @@ bld/
 *.publishsettings
 orleans.codegen.cs
 /.vscode/*
+.bin/
+.obj/
 
 # JetBrains Rider
 .idea/
