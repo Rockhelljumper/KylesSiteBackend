@@ -2,6 +2,7 @@ using KylesBackendAPI.HealthChecks;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.OpenApi.Models;
+using System.IO;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,22 +32,68 @@ builder.Services.AddHealthChecks()
     .AddCheck("system", () => HealthCheckResult.Healthy("System is healthy"))
     .AddCheck<DatabaseHealthCheck>("database");
 
-// Add CORS services with policy allowing localhost
+// CORS Configuration - Most permissive for troubleshooting
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("LocalhostPolicy", policy =>
+    options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", // For React default port
-                           "http://localhost:4200", // For Angular default port
-                           "http://localhost:5173", // For Vite default port
-                           "http://localhost:8080", // Common alternative port
-                           "http://127.0.0.1:5500") // For Live Server in VS Code
+        policy.AllowAnyOrigin()
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .SetIsOriginAllowed(_ => true); // Redundant with AllowAnyOrigin but added for emphasis
     });
 });
 
 var app = builder.Build();
+
+// Ensure Resume directory exists
+string resumeDirectory = app.Configuration["ResumeDirectory"] ??
+    Path.Combine(app.Environment.ContentRootPath, "Resumes");
+
+app.Logger.LogInformation("Application startup - Resume directory path: {ResumeDirectory}", resumeDirectory);
+
+if (!Directory.Exists(resumeDirectory))
+{
+    try
+    {
+        Directory.CreateDirectory(resumeDirectory);
+        app.Logger.LogInformation("Application startup - Created directory: {ResumeDirectory}", resumeDirectory);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "Application startup - Failed to create directory: {ResumeDirectory}", resumeDirectory);
+    }
+}
+
+// Apply CORS globally via middleware - MUST be before other middleware
+app.UseCors("AllowAll");
+
+// Additional middleware to explicitly add CORS headers to all responses
+app.Use(async (context, next) =>
+{
+    // Add CORS headers to ensure they're present even if normal CORS middleware doesn't handle it
+    context.Response.OnStarting(() =>
+    {
+        if (!context.Response.Headers.ContainsKey("Access-Control-Allow-Origin"))
+        {
+            context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+        }
+
+        if (!context.Response.Headers.ContainsKey("Access-Control-Allow-Methods"))
+        {
+            context.Response.Headers.Append("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        }
+
+        if (!context.Response.Headers.ContainsKey("Access-Control-Allow-Headers"))
+        {
+            context.Response.Headers.Append("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept");
+        }
+
+        return Task.CompletedTask;
+    });
+
+    await next();
+});
 
 app.UseSwagger();
 app.UseSwaggerUI();
@@ -54,8 +101,6 @@ app.UseSwaggerUI();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-
-
     // Disable HTTPS redirection in development
     // This allows HTTP calls from localhost
 }
@@ -65,18 +110,15 @@ else
     app.UseHttpsRedirection();
 }
 
-// Use CORS middleware - place before routing or authorization
-app.UseCors("LocalhostPolicy");
-
 app.UseAuthorization();
 
 // Add health check endpoints
-app.MapHealthChecks("/health", new HealthCheckOptions   
+app.MapHealthChecks("/health", new HealthCheckOptions
 {
     ResponseWriter = async (context, report) =>
     {
         context.Response.ContentType = "application/json";
-        
+
         var response = new
         {
             status = report.Status.ToString(),
@@ -88,7 +130,7 @@ app.MapHealthChecks("/health", new HealthCheckOptions
                 duration = e.Value.Duration
             })
         };
-        
+
         await context.Response.WriteAsJsonAsync(response);
     }
 });

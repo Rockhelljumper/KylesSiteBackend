@@ -2,7 +2,8 @@
 
 # This stage is used when running from VS in fast mode (Default for Debug configuration)
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
-USER $APP_UID
+# Run as root to avoid permission issues
+# USER $APP_UID
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
@@ -27,7 +28,6 @@ RUN dotnet publish "./KylesBackendAPI.csproj" -c $BUILD_CONFIGURATION -o /app/pu
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "KylesBackendAPI.dll"]
-
 # Volume configuration - This will be mounted from the host when running the container
 VOLUME ["/app/Resumes"]
+ENTRYPOINT ["dotnet", "KylesBackendAPI.dll"]
