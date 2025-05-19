@@ -28,3 +28,6 @@ FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "KylesBackendAPI.dll"]
+
+# Volume configuration - This will be mounted from the host when running the container
+VOLUME ["/app/Resumes"]
