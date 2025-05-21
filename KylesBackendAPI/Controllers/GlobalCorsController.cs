@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace KylesBackendAPI.Controllers
 {
     [ApiController]
-    [Route("{*path}")]
+    [Route("api/{*path}")]
     [EnableCors("AllowAll")]
     public class GlobalCorsController : ControllerBase
     {
