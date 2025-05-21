@@ -65,12 +65,27 @@ if (!Directory.Exists(resumeDirectory))
     }
 }
 
+// Configure Swagger FIRST to avoid routing conflicts
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Kyle's Backend API v1");
+    c.RoutePrefix = "swagger";
+});
+
 // Apply CORS globally via middleware - MUST be before other middleware
 app.UseCors("AllowAll");
 
 // Additional middleware to explicitly add CORS headers to all responses
 app.Use(async (context, next) =>
 {
+    // Skip CORS middleware for Swagger routes
+    if (context.Request.Path.StartsWithSegments("/swagger"))
+    {
+        await next();
+        return;
+    }
+
     // Add CORS headers to ensure they're present even if normal CORS middleware doesn't handle it
     context.Response.OnStarting(() =>
     {
@@ -94,9 +109,6 @@ app.Use(async (context, next) =>
 
     await next();
 });
-
-app.UseSwagger();
-app.UseSwaggerUI();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -135,6 +147,35 @@ app.MapHealthChecks("/health", new HealthCheckOptions
     }
 });
 
-app.MapControllers();
+// Configure routing with explicit order
+var controllerEndpoints = app.MapControllers();
+
+// Set up fallback route for undefined paths
+app.MapFallback(context =>
+{
+    // Avoid handling Swagger routes
+    if (context.Request.Path.StartsWithSegments("/swagger"))
+    {
+        return Task.CompletedTask;
+    }
+
+    // For GET requests, return 404 with a message
+    if (context.Request.Method == "GET")
+    {
+        context.Response.StatusCode = 404;
+        return context.Response.WriteAsync("Not Found");
+    }
+
+    // For OPTIONS requests, add CORS headers
+    if (context.Request.Method == "OPTIONS")
+    {
+        context.Response.StatusCode = 200;
+        context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+        context.Response.Headers.Append("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        context.Response.Headers.Append("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept");
+    }
+
+    return Task.CompletedTask;
+});
 
 app.Run();

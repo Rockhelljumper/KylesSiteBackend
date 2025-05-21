@@ -8,7 +8,7 @@ namespace KylesBackendAPI.Controllers
     [EnableCors("AllowAll")]
     public class CorsPreflightController : ControllerBase
     {
-        [HttpOptions("{*path}")]
+        [HttpOptions]
         public IActionResult HandleOptionsRequest()
         {
             Response.Headers.Append("Access-Control-Allow-Origin", "*");
